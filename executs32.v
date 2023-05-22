@@ -51,31 +51,37 @@ module executs32(Read_data_1,Read_data_2,Sign_extend,Function_opcode,Exe_opcode,
     reg[31:0] ALU_output_mux; // the result of arithmetic or logic calculation
     wire[32:0] Branch_Addr; // the calculated address of the instruction, Addr_Result is Branch_Addr[31:0]
 
+    // OK
     // Part One: Selection on Operand 2
     // from Controller, 1 means the Binput is an extended immediate, otherwise the Binput is Read_data_2
     assign Ainput = Read_data_1;
     assign Binput = (ALUSrc == 0) ? Read_data_2 : Sign_extend[31:0];
     
+    // OK
     // Part two: ALU control generation
     assign Exe_code = (I_format==0) ? Function_opcode :{ 3'b000 , Exe_opcode[2:0] };
     assign ALU_ctl[0] = (Exe_code[0] | Exe_code[3]) & ALUOp[1];
     assign ALU_ctl[1] = ((!Exe_code[2]) | (!ALUOp[1]));
     assign ALU_ctl[2] = (Exe_code[1] & ALUOp[1]) | ALUOp[0];
     
+    // 
     // Part three: Calculation: ALU_output_mux
     // Note some instructions need to be identified: shift, lui, *(jr, j, jal)
-    
     always @ (ALU_ctl or Ainput or Binput)
     begin
     case(ALU_ctl)
     3'b000:ALU_output_mux = Ainput & Binput;
     3'b001:ALU_output_mux = Ainput | Binput;
-    3'b010:ALU_output_mux = (ALUOp == 2'b00)? Ainput + Binput : Ainput + Binput; // TODO: refine for lw and sw
-    3'b011:ALU_output_mux = Ainput + Binput;
-    3'b100:ALU_output_mux = Ainput | Binput;
-    3'b101:ALU_output_mux = ~(Ainput | Binput);// TODO: refine for lui
-    3'b110:ALU_output_mux = (ALUOp == 2'b10)? Ainput - Binput : Ainput + Binput;// TODO: refine for beq,bne, check slti
-    3'b111:ALU_output_mux =  Ainput - Binput; // TODO:check
+    3'b010:ALU_output_mux = Ainput + Binput; // for lw and sw, we calculate addr below
+    3'b011:ALU_output_mux = Ainput + Binput; // Note!! addu/addiu overflow detection TODO
+    3'b100:ALU_output_mux = Ainput ^ Binput;
+    3'b101:ALU_output_mux = (I_format) ? Ainput | Binput : ~(Ainput | Binput);// TODO: refine for lui
+    3'b110:ALU_output_mux = Ainput - Binput; // for beq,bne, addr below
+    3'b111:ALU_output_mux = Ainput - Binput;
+//    case(Exe_code[3:0])
+//        4'b0011: ALU_output_mux = (I_format) ? Ainput < Binput : Ainput - Binput; // TODO:check unsigned
+//        4'b1010, 4'b1011: ALU_output_mux = Ainput < Binput;
+//    endcase
     default:ALU_output_mux = 32'h000DDDDD;
     endcase
     end
@@ -104,14 +110,17 @@ module executs32(Read_data_1,Read_data_2,Sign_extend,Function_opcode,Exe_opcode,
     reg [31:0] ALU_Result_internal;
     
     always @* begin
-        //set type operation (slt, slti, sltu, sltiu)
-        if( ((ALU_ctl == 3'b111) && (Exe_code[3] == 1)) || ((ALU_ctl == 3'b111) && (Exe_code[3] == 0)) )
-            ALU_Result_internal = (Ainput - Binput < 0)? 1: 0;
+    //set type operation (slt, slti)
+        if( ((ALU_ctl == 3'b111) && (Exe_code[3:0] == 4'b1010))  || ((ALU_ctl == 3'b110) && (ALUOp[1] == 1'b1) && (I_format)) )
+            ALU_Result_internal = (($signed(Ainput) < $signed(Binput)) ? 1: 0);
+        //set type operation (sltu, sltiu)
+        else if( ((ALU_ctl == 3'b111) && (Exe_code[3:0] == 4'b1011))  || ((ALU_ctl == 3'b111) && (Exe_code[3:0] == 4'b0011) && (I_format)) )
+            ALU_Result_internal = ((Ainput < Binput) ? 1: 0);
         //lui operation
-        else if((ALU_ctl == 3'b101) && (I_format == 1))
+        else if((ALU_ctl == 3'b101) && (I_format == 1'b1))
             ALU_Result_internal[31:0] = Sign_extend << 16;
         //shift operation
-        else if(Sftmd == 1)
+        else if(Sftmd == 1'b1)
             ALU_Result_internal = Shift_Result;
         //other types of operation in ALU (arithmatic or logic calculation)
         else
@@ -124,30 +133,25 @@ module executs32(Read_data_1,Read_data_2,Sign_extend,Function_opcode,Exe_opcode,
     
     // Part six: Addr_result and Zero TODO
 // Declare internal variables for Addr_Result and Zero.
-    reg [31:0] Addr_Result_internal;
-    reg Zero_internal;
+    wire [31:0] branch_addr;  // Branch address calculation
+    assign branch_addr = PC_plus_4 + (Sign_extend << 2);
     
+    reg Zero_internal;  // Zero flag
     always @* begin
-        // For lw, sw instructions, the address is the sum of base (Read_data_1) and offset (Sign_extend).
-        if (Exe_opcode == 6'b100011 || Exe_opcode == 6'b101011)
-            Addr_Result_internal = Read_data_1 + Sign_extend;
-        // For j, jr, jal instructions, the address is simply the value of Read_data_1.
-        else if (Exe_opcode == 6'b000010 || Exe_opcode == 6'b000011 || Jr == 1)
-            Addr_Result_internal = Read_data_1;
-        // For other instructions, just keep the original value of Addr_Result.
-        else
-            Addr_Result_internal = Addr_Result;
-        
-        // If the result of ALU is zero, set Zero to 1.
-        if (ALU_Result_internal == 0)
-            Zero_internal = 1;
-        else
-            Zero_internal = 0;
+        if (ALU_Result == 32'b0) Zero_internal = 1'b1;
+        else Zero_internal = 1'b0;
     end
-    
-    // Assign the outputs to the computed values.
-    assign Addr_Result = Addr_Result_internal;
     assign Zero = Zero_internal;
+    
+    reg [31:0] Addr_Result_internal;  // Address calculation
+    always @* begin
+        if ((Exe_opcode == 6'b000100) || (Exe_opcode == 6'b000101))  // BEQ or BNE
+            Addr_Result_internal = branch_addr;
+        else
+            Addr_Result_internal = branch_addr;
+    end
+    assign Addr_Result = Addr_Result_internal;
+
     
     
 endmodule
