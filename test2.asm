@@ -213,6 +213,7 @@ case8:
 	addi $a1, $0, 4000
 	jal wait
 	zero:
+		sw $0, 0xBC60($0)
 	j control
 sum1:
 addi $sp,$sp,-8 #adjust stack for 2 items
