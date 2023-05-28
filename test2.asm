@@ -2,6 +2,7 @@
 	x: .word 0x8000
 .text 
 control:
+	sw $0, 0xDC60($0)
 lw $s1, 0xAC60($0)   #which case
 addi $s2, $0, 0
 beq $s1, $s2, case1
@@ -96,6 +97,7 @@ case5:
 		sw $t0, 0xBC60($0)  #show result
 		j control
 	Overflow:
+		sw $0, 0xBC60($0) 
 		sw $t4, 0xDC60($0)  #show overflow(led)
 	j control
 case6:
@@ -118,6 +120,7 @@ case6:
 		sw $t0, 0xBC60($0)  #show result
 		j control
 	Overflow2:
+		sw $0, 0xBC60($0) 
 		sw $t4, 0xDC60($0)  #show overflow(led)
 	j control
 case7:	
