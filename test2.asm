@@ -1,5 +1,6 @@
 .data 
 	x: .word 0x8000
+	
 .text 
 control:
 	sw $0, 0xDC60($0)
@@ -271,7 +272,6 @@ addi $sp,$sp,8
 add $v0,$a0,$v0 
 jr $ra
 
-
 sum4:
 addi $sp,$sp,-8 
 sw $ra, 4($sp) 
@@ -279,7 +279,7 @@ sw $a0, 0($sp)
 slti $t0,$a0,1 
 beq $t0,$zero,L4 
 	sw $a0, 0xBC70($0) #SHOW argument out of stack
-	addi $a1, $0, 1000
+	addi $a1, $0, 3000
 	jal wait
 addi $v0,$zero,0
 lw $ra,4($sp)
@@ -290,7 +290,7 @@ addi $a0,$a0,-1
 jal sum4 
 lw $a0,0($sp) 
 	sw $a0, 0xBC70($0) #SHOW argument out of stack
-	addi $a1, $0, 1000
+	addi $a1, $0, 3000
 	jal wait 
 lw $ra,4($sp)
 addi $sp,$sp,8
@@ -324,4 +324,3 @@ signTurn:
 	addi $v0, $s3, 0
 	positive:
 	jr $ra
-	
