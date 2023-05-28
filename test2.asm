@@ -167,6 +167,7 @@ case8:
 	sub $t1, $s2, $t1
 	aposDiv:	
 	andi $t5, $t2, 8
+	beq $t2, $0, zero
 	beq $t5, $0, bposDiv
 	addi $s2, $0, 16
 	sub $t2, $s2, $t2
@@ -211,6 +212,7 @@ case8:
 	sw $t3, 0xBC60($0)
 	addi $a1, $0, 4000
 	jal wait
+	zero:
 	j control
 sum1:
 addi $sp,$sp,-8 #adjust stack for 2 items
