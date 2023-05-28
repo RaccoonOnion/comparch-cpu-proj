@@ -52,7 +52,6 @@ case4:
 	j control
 case5:
 	xor $12, $10, $11
-	andi $12, $12, 15
 	sw $12, 0xEC70($0) #show
 	j control
 case6:
