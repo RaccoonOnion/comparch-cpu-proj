@@ -2,6 +2,8 @@
 
 .text 
 control:
+sw $0, 0xDC70($0) #light
+sw $0, 0xEC70($0) #light
 lw $1, 0xAC60($0)   #which case
 addi $2, $0, 0
 beq $1, $2, case1
@@ -23,6 +25,7 @@ j control
 
 case1:
 	lw $3, 0x8C60($0)  #a
+	beq $3, $0, control
 	addi $4, $3, -1
 	and $5, $3, $4
 	sw $3, 0xDC70($0) # show a
@@ -49,6 +52,7 @@ case4:
 	j control
 case5:
 	xor $12, $10, $11
+	andi $12, $12, 15
 	sw $12, 0xEC70($0) #show
 	j control
 case6:
